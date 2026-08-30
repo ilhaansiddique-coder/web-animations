@@ -10,11 +10,12 @@ import {
 } from "@/lib/world-map";
 
 /**
- * World map with real country borders and live flight routes.
+ * World map with real country borders and a live flight network out of Dhaka.
  *
  * Country outlines are pregenerated SVG paths (Natural Earth 110m, Miller
- * projection) so nothing is projected at runtime. Hovering a country lifts its
- * whole continent; aircraft ride their arcs with SVG animateMotion and the
+ * projection) so nothing is projected at runtime. Bangladesh is tinted as the
+ * home base and every route is a spoke from DAC; hovering any country lifts its
+ * whole continent. Aircraft ride their arcs with SVG animateMotion and the
  * trails run on CSS keyframes, so the loop stays off the main thread.
  */
 
@@ -27,43 +28,67 @@ const CONTINENT_TINT: Record<string, string> = {
   OC: "#80ed99",
 };
 
-type Airport = { code: string; city: string; lon: number; lat: number };
+type Airport = {
+  code: string;
+  city: string;
+  lon: number;
+  lat: number;
+  /** Nudge the label when two airports sit on top of each other. */
+  labelDy?: number;
+};
+
+/** Every route flies out of Dhaka — the map is a hub-and-spoke, not a mesh. */
+const ORIGIN: Airport = {
+  code: "DAC",
+  city: "Dhaka",
+  lon: 90.4,
+  lat: 23.84,
+};
+
+/** The country tinted permanently as the home base. */
+const ORIGIN_COUNTRY = "BD";
 
 const AIRPORTS: Record<string, Airport> = {
   JFK: { code: "JFK", city: "New York", lon: -73.78, lat: 40.64 },
   LHR: { code: "LHR", city: "London", lon: -0.46, lat: 51.47 },
   DXB: { code: "DXB", city: "Dubai", lon: 55.36, lat: 25.25 },
-  SIN: { code: "SIN", city: "Singapore", lon: 103.99, lat: 1.36 },
+  SIN: { code: "SIN", city: "Singapore", lon: 103.99, lat: 1.36, labelDy: 12 },
   HND: { code: "HND", city: "Tokyo", lon: 139.78, lat: 35.55 },
   GRU: { code: "GRU", city: "São Paulo", lon: -46.47, lat: -23.43 },
   LOS: { code: "LOS", city: "Lagos", lon: 3.32, lat: 6.58 },
   SYD: { code: "SYD", city: "Sydney", lon: 151.18, lat: -33.94 },
-  BOM: { code: "BOM", city: "Mumbai", lon: 72.87, lat: 19.09 },
   FRA: { code: "FRA", city: "Frankfurt", lon: 8.57, lat: 50.03 },
   SFO: { code: "SFO", city: "San Francisco", lon: -122.38, lat: 37.62 },
   NBO: { code: "NBO", city: "Nairobi", lon: 36.93, lat: -1.32 },
   JNB: { code: "JNB", city: "Johannesburg", lon: 28.24, lat: -26.13 },
-  MEX: { code: "MEX", city: "Mexico City", lon: -99.07, lat: 19.44 },
+  YYZ: { code: "YYZ", city: "Toronto", lon: -79.63, lat: 43.68 },
+  IST: { code: "IST", city: "Istanbul", lon: 28.75, lat: 41.26 },
+  JED: { code: "JED", city: "Jeddah", lon: 39.16, lat: 21.68 },
+  KUL: { code: "KUL", city: "Kuala Lumpur", lon: 101.71, lat: 2.75 },
+  CAN: { code: "CAN", city: "Guangzhou", lon: 113.3, lat: 23.39 },
+  ICN: { code: "ICN", city: "Seoul", lon: 126.45, lat: 37.46 },
 };
 
-/** [from, to, seconds per trip, start delay] */
-const ROUTES: [string, string, number, number][] = [
-  ["JFK", "LHR", 9, 0],
-  ["LHR", "DXB", 10, 2.5],
-  ["DXB", "SIN", 8.5, 1.2],
-  ["SIN", "HND", 7.5, 4],
-  ["SFO", "HND", 11, 0.8],
-  ["JFK", "SFO", 7, 3.4],
-  ["LHR", "LOS", 9.5, 5.5],
-  ["LOS", "JNB", 7, 2],
-  ["DXB", "BOM", 6.5, 6],
-  ["BOM", "SIN", 8, 3],
-  ["GRU", "LHR", 12, 1.6],
-  ["SIN", "SYD", 9, 6.5],
-  ["FRA", "DXB", 8, 4.4],
-  ["MEX", "GRU", 9.5, 2.8],
-  ["NBO", "DXB", 7, 5],
-  ["JFK", "MEX", 6.5, 7],
+/** [destination, seconds per trip, start delay] — all depart Dhaka */
+const ROUTES: [string, number, number][] = [
+  ["LHR", 11, 0],
+  ["JFK", 13, 1.4],
+  ["DXB", 7.5, 2.6],
+  ["SIN", 6.5, 0.7],
+  ["HND", 8.5, 3.8],
+  ["SYD", 10.5, 2.1],
+  ["FRA", 10.5, 5.2],
+  ["JED", 7, 4.3],
+  ["KUL", 6, 1.9],
+  ["CAN", 6, 6.1],
+  ["ICN", 8, 3.1],
+  ["IST", 9, 7.4],
+  ["NBO", 8.5, 5.8],
+  ["JNB", 10, 0.4],
+  ["LOS", 10, 6.7],
+  ["SFO", 14, 4.9],
+  ["YYZ", 13, 8.2],
+  ["GRU", 15, 2.9],
 ];
 
 function flightPath(a: Airport, b: Airport) {
@@ -106,25 +131,30 @@ export default function WorldFlightMap() {
 
   const flights = useMemo(
     () =>
-      ROUTES.map(([from, to, duration, delay], i) => ({
-        key: `${from}-${to}-${i}`,
+      ROUTES.map(([to, duration, delay], i) => ({
+        key: `${ORIGIN.code}-${to}`,
         pathId: `${uid}-route-${i}`,
-        from: AIRPORTS[from],
         to: AIRPORTS[to],
-        d: flightPath(AIRPORTS[from], AIRPORTS[to]),
+        d: flightPath(ORIGIN, AIRPORTS[to]),
         duration,
         delay,
       })),
     [uid],
   );
 
-  const hubs = useMemo(() => {
-    const codes = [...new Set(ROUTES.flatMap(([a, b]) => [a, b]))];
-    return codes.map((code) => {
-      const airport = AIRPORTS[code];
-      const [x, y] = projectPoint(airport.lon, airport.lat);
-      return { ...airport, x, y };
-    });
+  const destinations = useMemo(
+    () =>
+      ROUTES.map(([code]) => {
+        const airport = AIRPORTS[code];
+        const [x, y] = projectPoint(airport.lon, airport.lat);
+        return { ...airport, x, y };
+      }),
+    [],
+  );
+
+  const origin = useMemo(() => {
+    const [x, y] = projectPoint(ORIGIN.lon, ORIGIN.lat);
+    return { x, y };
   }, []);
 
   return (
@@ -140,21 +170,26 @@ export default function WorldFlightMap() {
             <stop offset="0%" stopColor="#4cc9f0" stopOpacity="0.35" />
             <stop offset="100%" stopColor="#4cc9f0" stopOpacity="0" />
           </radialGradient>
+          <radialGradient id={`${uid}-home`}>
+            <stop offset="0%" stopColor="#f72585" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="#f72585" stopOpacity="0" />
+          </radialGradient>
         </defs>
 
         {/* Countries — every border is a path's own stroke */}
         <g>
           {COUNTRIES.map((country) => {
             const active = hovered?.continent === country.continent;
+            const home = country.id === ORIGIN_COUNTRY;
             const tint = CONTINENT_TINT[country.continent] ?? "#8b93a7";
             return (
               <path
                 key={country.id}
                 d={country.d}
-                fill={active ? tint : "#1a2230"}
-                fillOpacity={active ? 0.3 : 1}
-                stroke={active ? tint : "#2b3445"}
-                strokeWidth={0.5}
+                fill={home ? "#f72585" : active ? tint : "#1a2230"}
+                fillOpacity={home ? 0.75 : active ? 0.3 : 1}
+                stroke={home ? "#ff5fa8" : active ? tint : "#2b3445"}
+                strokeWidth={home ? 0.9 : 0.5}
                 strokeLinejoin="round"
                 className="wfm-country"
                 onMouseEnter={(event) => {
@@ -238,18 +273,18 @@ export default function WorldFlightMap() {
           ))}
         </g>
 
-        {/* Hub markers */}
+        {/* Destination airports */}
         <g>
-          {hubs.map((hub, i) => (
+          {destinations.map((hub, i) => (
             <g key={hub.code}>
-              <circle cx={hub.x} cy={hub.y} r="14" fill={`url(#${uid}-glow)`} />
+              <circle cx={hub.x} cy={hub.y} r="12" fill={`url(#${uid}-glow)`} />
               <circle
                 cx={hub.x}
                 cy={hub.y}
-                r="2.4"
+                r="2.2"
                 fill="none"
                 stroke="#4cc9f0"
-                strokeWidth="0.9"
+                strokeWidth="0.8"
                 className="wfm-ping"
                 style={
                   {
@@ -258,12 +293,71 @@ export default function WorldFlightMap() {
                   } as React.CSSProperties
                 }
               />
-              <circle cx={hub.x} cy={hub.y} r="1.9" fill="#ffd166" />
+              <circle cx={hub.x} cy={hub.y} r="1.7" fill="#ffd166" />
+              <text
+                x={hub.x}
+                y={hub.y + (hub.labelDy ?? -6)}
+                textAnchor="middle"
+                fill="#c9d2e3"
+                fontSize="6.5"
+                fontFamily="var(--font-geist-mono), monospace"
+                opacity="0.75"
+              >
+                {hub.code}
+              </text>
               <title>
                 {hub.city} ({hub.code})
               </title>
             </g>
           ))}
+        </g>
+
+        {/* Dhaka — the hub every route departs from */}
+        <g>
+          <circle cx={origin.x} cy={origin.y} r="22" fill={`url(#${uid}-home)`} />
+          <circle
+            cx={origin.x}
+            cy={origin.y}
+            r="3.4"
+            fill="none"
+            stroke="#f72585"
+            strokeWidth="1.1"
+            className="wfm-ping"
+            style={
+              {
+                transformOrigin: `${origin.x}px ${origin.y}px`,
+                "--delay": "0s",
+              } as React.CSSProperties
+            }
+          />
+          <circle
+            cx={origin.x}
+            cy={origin.y}
+            r="3.4"
+            fill="none"
+            stroke="#f72585"
+            strokeWidth="1.1"
+            className="wfm-ping"
+            style={
+              {
+                transformOrigin: `${origin.x}px ${origin.y}px`,
+                "--delay": "1.6s",
+              } as React.CSSProperties
+            }
+          />
+          <circle cx={origin.x} cy={origin.y} r="3" fill="#f72585" stroke="#ffe1ef" strokeWidth="0.8" />
+          <text
+            x={origin.x}
+            y={origin.y + 13}
+            textAnchor="middle"
+            fill="#ff8ac2"
+            fontSize="8.5"
+            fontWeight="600"
+            fontFamily="var(--font-geist-mono), monospace"
+          >
+            DHAKA · DAC
+          </text>
+          <title>Dhaka, Bangladesh (DAC)</title>
         </g>
       </svg>
 

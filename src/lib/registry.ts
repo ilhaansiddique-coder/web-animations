@@ -62,7 +62,7 @@ export const FEATURED: AnimationEntry[] = [
     id: "world-flight-map",
     title: "World flight map",
     description:
-      "Every country as its own path — real borders, continents colour-coded on hover — with aircraft flying real city pairs along bowed arcs, glowing trails behind them and pinging hubs at each airport.",
+      "Every country as its own path — real borders, continents colour-coded on hover — with a flight network radiating out of Dhaka: 18 spokes to airports on every continent, aircraft riding bowed arcs with glowing trails, and Bangladesh tinted as the home base.",
     tags: ["SVG", "map", "animateMotion"],
     file: "components/WorldFlightMap.tsx",
     extraFiles: ["lib/world-map.ts"],
@@ -74,10 +74,10 @@ export const FEATURED: AnimationEntry[] = [
     notes: [
       "src/lib/world-map.ts is generated — run `node scripts/generate-world-map.mjs` (dev deps: world-atlas, topojson-client, i18n-iso-countries, countries-list).",
       "Add the .wfm-* classes and @keyframes wfm-trail / wfm-plane / wfm-ping from globals.css.",
-      "Edit AIRPORTS and ROUTES at the top of the file to fly your own network.",
+      "Change ORIGIN, ORIGIN_COUNTRY and the ROUTES list at the top of the file to fly the network out of a different hub.",
     ],
     prompt:
-      "Build a React world map with animated flights as one SVG. Pregenerate the geography at author time: take Natural Earth 110m country polygons, project them with a Miller cylindrical projection into a 1000-unit-wide viewBox, clamp latitude to drop Antarctica, run Douglas-Peucker simplification, and emit each country as an SVG path string with its name and continent code — so the component projects nothing at runtime. Render one path per country with its own stroke as the border; hovering a country tints every country on the same continent and shows a tooltip with the country and continent name, with a legend that dims to the hovered continent. For flights, define airports by lon/lat and routes as pairs: build a quadratic bezier between the projected endpoints with the control point pushed perpendicular to the route by about a quarter of its length, so long hops bow harder. Per route draw a faint guide path, a travelling trail (set pathLength=1 and animate stroke-dashoffset from 0.08 to -1 so speed is independent of arc length), and an aircraft triangle moving with SVG animateMotion, rotate=auto, referencing the guide path by id. Pulse a ring at each hub. Give each route its own duration and delay through CSS custom properties, and under prefers-reduced-motion drop the animateMotion elements and freeze the trails.",
+      "Build a React world map with animated flights as one SVG. Pregenerate the geography at author time: take Natural Earth 110m country polygons, project them with a Miller cylindrical projection into a 1000-unit-wide viewBox, clamp latitude to drop Antarctica, run Douglas-Peucker simplification, and emit each country as an SVG path string with its name and continent code — so the component projects nothing at runtime. Render one path per country with its own stroke as the border; hovering a country tints every country on the same continent and shows a tooltip with the country and continent name, with a legend that dims to the hovered continent. For flights, model a hub-and-spoke: one ORIGIN airport (lon/lat) and a list of destinations, each with its own duration and start delay. Build a quadratic bezier from the origin to each destination with the control point pushed perpendicular to the route by about a quarter of its length, so long hops bow harder. Tint the origin's country permanently, mark it with a labelled pin and two offset ping rings, and label each destination with its IATA code. Per route draw a faint guide path, a travelling trail (set pathLength=1 and animate stroke-dashoffset from 0.08 to -1 so speed is independent of arc length), and an aircraft triangle moving with SVG animateMotion, rotate=auto, referencing the guide path by id. Pulse a ring at each hub. Give each route its own duration and delay through CSS custom properties, and under prefers-reduced-motion drop the animateMotion elements and freeze the trails.",
   },
   {
     id: "route-globe",
